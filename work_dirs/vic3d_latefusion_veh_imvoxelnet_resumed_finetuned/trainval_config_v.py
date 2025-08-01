@@ -1,5 +1,5 @@
 dataset_type = 'KittiDataset'
-data_root = '../../../../data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side/'
+data_root = '../../../../data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/'
 class_names = ['Car']
 input_modality = dict(use_lidar=False, use_camera=True)
 point_cloud_range = [0, -39.68, -3, 92.16, 39.68, 1]
@@ -12,7 +12,7 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 img_scale = (960, 540)
 img_resize_scale = [(912, 513), (1008, 567)]
-work_dir = '/workspace/DAIR-V2X/work_dirs/vic3d_latefusion_inf_imvoxelnet_resumed'
+work_dir = '/workspace/DAIR-V2X/work_dirs/vic3d_latefusion_veh_imvoxelnet_resumed_finetuned'
 model = dict(
     type='ImVoxelNet',
     backbone=dict(
@@ -113,17 +113,17 @@ test_pipeline = [
     dict(type='Collect3D', keys=['img'])
 ]
 data = dict(
-    samples_per_gpu=1,
-    workers_per_gpu=1,
+    samples_per_gpu=4,
+    workers_per_gpu=4,
     train=dict(
         type='RepeatDataset',
-        times=1,
+        times=3,
         dataset=dict(
             type='KittiDataset',
             data_root=
-            '/workspace/DAIR-V2X/data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side/',
+            '/workspace/DAIR-V2X/data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/',
             ann_file=
-            '/workspace/DAIR-V2X/data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side/kitti_infos_train.pkl',
+            '/workspace/DAIR-V2X/data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/kitti_infos_train.pkl',
             split='training',
             pts_prefix='velodyne_reduced',
             pipeline=[
@@ -155,9 +155,9 @@ data = dict(
     val=dict(
         type='KittiDataset',
         data_root=
-        '/workspace/DAIR-V2X/data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side/',
+        '/workspace/DAIR-V2X/data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/',
         ann_file=
-        '/workspace/DAIR-V2X/data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side/kitti_infos_val.pkl',
+        '/workspace/DAIR-V2X/data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/kitti_infos_val.pkl',
         split='training',
         pts_prefix='velodyne_reduced',
         pipeline=[
@@ -181,9 +181,9 @@ data = dict(
     test=dict(
         type='KittiDataset',
         data_root=
-        '/workspace/DAIR-V2X/data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side/',
+        '/workspace/DAIR-V2X/data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/',
         ann_file=
-        '/workspace/DAIR-V2X/data/DAIR-V2X/cooperative-vehicle-infrastructure/infrastructure-side/kitti_infos_val.pkl',
+        '/workspace/DAIR-V2X/data/DAIR-V2X/cooperative-vehicle-infrastructure/vehicle-side/kitti_infos_val.pkl',
         split='training',
         pts_prefix='velodyne_reduced',
         pipeline=[
@@ -213,8 +213,8 @@ optimizer = dict(
         custom_keys=dict(backbone=dict(lr_mult=0.1, decay_mult=1.0))))
 optimizer_config = dict(grad_clip=dict(max_norm=35.0, norm_type=2))
 lr_config = dict(policy='step', step=[8, 11])
-total_epochs = 12
-checkpoint_config = dict(interval=1, max_keep_ckpts=1)
+total_epochs = 20
+checkpoint_config = dict(interval=1, max_keep_ckpts=3)
 log_config = dict(
     interval=50,
     hooks=[dict(type='TextLoggerHook'),
@@ -224,6 +224,7 @@ dist_params = dict(backend='nccl')
 find_unused_parameters = True
 log_level = 'INFO'
 load_from = None
-resume_from = '/workspace/DAIR-V2X/configs/vic3d/late-fusion-image/imvoxelnet/vic3d_latefusion_inf_imvoxelnet_973cefc0b2c14fee1b8775aa996ac779.pth'
+resume_from = '/workspace/DAIR-V2X/configs/vic3d/late-fusion-image/imvoxelnet/vic3d_latefusion_veh_imvoxelnet_9d0ad4d4930c41d62839d45c06f86326.pth'
 workflow = [('train', 1)]
+runner = dict(type='EpochBasedRunner', max_epochs=20)
 gpu_ids = range(0, 1)

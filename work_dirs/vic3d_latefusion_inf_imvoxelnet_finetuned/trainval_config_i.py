@@ -12,7 +12,7 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 img_scale = (960, 540)
 img_resize_scale = [(912, 513), (1008, 567)]
-work_dir = '/workspace/DAIR-V2X/work_dirs/vic3d_latefusion_inf_imvoxelnet_resumed'
+work_dir = '/workspace/DAIR-V2X/work_dirs/vic3d_latefusion_inf_imvoxelnet_finetuned'
 model = dict(
     type='ImVoxelNet',
     backbone=dict(
@@ -214,7 +214,7 @@ optimizer = dict(
 optimizer_config = dict(grad_clip=dict(max_norm=35.0, norm_type=2))
 lr_config = dict(policy='step', step=[8, 11])
 total_epochs = 12
-checkpoint_config = dict(interval=1, max_keep_ckpts=1)
+checkpoint_config = dict(interval=1, max_keep_ckpts=3)
 log_config = dict(
     interval=50,
     hooks=[dict(type='TextLoggerHook'),
@@ -223,7 +223,8 @@ evaluation = dict(interval=1)
 dist_params = dict(backend='nccl')
 find_unused_parameters = True
 log_level = 'INFO'
-load_from = None
-resume_from = '/workspace/DAIR-V2X/configs/vic3d/late-fusion-image/imvoxelnet/vic3d_latefusion_inf_imvoxelnet_973cefc0b2c14fee1b8775aa996ac779.pth'
+load_from = '/workspace/DAIR-V2X/configs/vic3d/late-fusion-image/imvoxelnet/vic3d_latefusion_inf_imvoxelnet_973cefc0b2c14fee1b8775aa996ac779.pth'
+resume_from = None
 workflow = [('train', 1)]
+runner = dict(type='EpochBasedRunner', max_epochs=20)
 gpu_ids = range(0, 1)
