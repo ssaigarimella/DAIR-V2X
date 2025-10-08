@@ -213,7 +213,7 @@ optimizer = dict(
         custom_keys=dict(backbone=dict(lr_mult=0.1, decay_mult=1.0))))
 optimizer_config = dict(grad_clip=dict(max_norm=35.0, norm_type=2))
 lr_config = dict(policy='step', step=[8, 11])
-total_epochs = 20
+total_epochs = 1
 checkpoint_config = dict(interval=1, max_keep_ckpts=3)
 log_config = dict(
     interval=50,
@@ -226,5 +226,5 @@ log_level = 'INFO'
 load_from = None
 resume_from = '/workspace/DAIR-V2X/configs/vic3d/late-fusion-image/imvoxelnet/vic3d_latefusion_veh_imvoxelnet_9d0ad4d4930c41d62839d45c06f86326.pth'
 workflow = [('train', 1)]
-runner = dict(type='EpochBasedRunner', max_epochs=20)
+runner = dict(type='EpochBasedRunner', max_epochs=1)
 gpu_ids = range(0, 1)

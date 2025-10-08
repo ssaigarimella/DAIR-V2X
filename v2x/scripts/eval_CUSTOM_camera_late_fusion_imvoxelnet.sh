@@ -37,8 +37,7 @@ python eval.py \
   --veh-config-path $VEHICLE_MODEL_PATH/$VEHICLE_CONFIG_NAME \
   --veh-model-path $VEHICLE_MODEL_PATH/${VEHICLE_MODEL_NAME} \
   --device ${CUDA_VISIBLE_DEVICES} \
-  --pred-class car \
+  --pred-class Car \
   --sensortype camera \
-  --extended-range $EXTEND_RANGE_START -39.68 -3 $EXTEND_RANGE_END 39.68 1 \
   --overwrite-cache \
   $TIME_COMPENSATION

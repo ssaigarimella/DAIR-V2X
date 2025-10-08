@@ -21,6 +21,15 @@ from models import SUPPROTED_MODELS
 from models.model_utils import Channel
 
 
+def _dbg(name, d):
+    import numpy as np
+    b = d.get("boxes_3d", np.zeros((0,8,3)))
+    s = d.get("scores_3d", np.zeros((0,)))
+    l = d.get("labels_3d", np.zeros((0,)))
+    print(f"[DBG] {name}: num={len(s)}  max_score={float(s.max()) if s.size else -1}  "
+          f"min_score={float(s.min()) if s.size else -1}  "
+          f"unique_labels={np.unique(l) if l.size else []}")
+
 def eval_vic(args, dataset, model, evaluator):
     idx = -1
     for VICFrame, label, filt in tqdm(dataset):
@@ -41,6 +50,8 @@ def eval_vic(args, dataset, model, evaluator):
             None if not hasattr(dataset, "prev_inf_frame") else dataset.prev_inf_frame,
         )
 
+        _dbg("pred", pred)
+        
         evaluator.add_frame(pred, label)
         pipe.flush()
         pred["label"] = label["boxes_3d"]
@@ -98,6 +109,10 @@ if __name__ == "__main__":
     )
 
     logger.info("loading evaluator")
+    # before creating Evaluator
+    norm = lambda s: (s or "").strip().lower()
+    if args.pred_classes:
+        args.pred_classes = [norm(c) for c in args.pred_classes]
     evaluator = Evaluator(args.pred_classes)
 
     logger.info("loading model")

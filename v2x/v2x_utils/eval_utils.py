@@ -11,8 +11,11 @@ iou_threshold_dict = {
     "car": [0.3, 0.5, 0.7],
     "cyclist": [0.25, 0.5],
     "pedestrian": [0.25, 0.5],
+    "Car": [0.3, 0.5, 0.7],
+    "Pedestrian": [0.25, 0.5],
 }
 
+def _norm(s): return (s or "").strip().lower()
 
 def polygon_clip(subjectPolygon, clipPolygon):
     """Clip a polygon with another polygon.
@@ -164,9 +167,11 @@ def cmp(pred1, pred2):
 def build_label_list(annos, filt):
     result_list = []
     for i in range(len(annos["labels_3d"])):
-        if superclass[annos["labels_3d"][i]] == filt:
+        # was: if superclass[annos["labels_3d"][i]] == filt:
+        if _norm(superclass[annos["labels_3d"][i]]) == _norm(filt):
             result_list.append({"box": annos["boxes_3d"][i], "score": annos["scores_3d"][i]})
     return result_list
+
 
 
 def compute_type(gt_annos, pred_annos, cla, iou_threshold, view):
@@ -249,29 +254,44 @@ def compute_ap(pred_annos, num_gt):
 
 class Evaluator(object):
     def __init__(self, pred_classes):
-        self.pred_classes = pred_classes
+        # normalize threshold dict keys once
+        self.iou_threshold_dict = { _norm(k): v for k, v in iou_threshold_dict.items() }
+
+        # normalize requested classes (or default to all keys)
+        if pred_classes is None:
+            self.pred_classes = list(self.iou_threshold_dict.keys())
+        else:
+            self.pred_classes = [_norm(c) for c in pred_classes]
+
         self.all_preds = {"3d": {}, "bev": {}}
         self.gt_num = {}
+
         for pred_class in self.pred_classes:
+            if pred_class not in self.iou_threshold_dict:
+                logger.warning(f"Class '{pred_class}' not in iou_threshold_dict; skipping.")
+                continue
             self.all_preds["3d"][pred_class] = {}
             self.all_preds["bev"][pred_class] = {}
             self.gt_num[pred_class] = {}
-            for iou in iou_threshold_dict[pred_class]:
+            for iou in self.iou_threshold_dict[pred_class]:
                 self.all_preds["3d"][pred_class][iou] = []
                 self.all_preds["bev"][pred_class][iou] = []
                 self.gt_num[pred_class][iou] = 0
 
     def add_frame(self, pred, label):
         for pred_class in self.pred_classes:
-            for iou in iou_threshold_dict[pred_class]:
-                pred_result, num_label, num_tp = compute_type(label, pred, pred_class, iou, "3d")  # test
+            if pred_class not in self.iou_threshold_dict:
+                continue
+            for iou in self.iou_threshold_dict[pred_class]:
+                pred_result, num_label, num_tp = compute_type(label, pred, pred_class, iou, "3d")
                 self.all_preds["3d"][pred_class][iou] += pred_result
                 self.all_preds["bev"][pred_class][iou] += compute_type(label, pred, pred_class, iou, "bev")[0]
                 self.gt_num[pred_class][iou] += num_label
-                # logger.debug("iou: {}, tp: {}, all_pred: {}".format(iou, num_tp, len(pred["labels_3d"])))
 
     def print_ap(self, view, type="micro"):
         for pred_class in self.pred_classes:
-            for iou in iou_threshold_dict[pred_class]:
+            if pred_class not in self.iou_threshold_dict:
+                continue
+            for iou in self.iou_threshold_dict[pred_class]:
                 ap = compute_ap(self.all_preds[view][pred_class][iou], self.gt_num[pred_class][iou])
                 print("%s %s IoU threshold %.2lf, Average Precision = %.2lf" % (pred_class, view, iou, ap * 100))
