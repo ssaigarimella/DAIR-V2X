@@ -106,16 +106,38 @@ class InfFrame(Frame):
 
 class VICFrame(Frame):
     def __init__(self, path, info_dict, veh_frame, inf_frame, time_diff, offset=None):
-        # TODO: build vehicle frame and infrastructure frame
         super().__init__(path, info_dict)
         self.veh_frame = veh_frame
         self.inf_frame = inf_frame
         self.time_diff = time_diff
         self.transformation = None
+
         if offset is None:
-            offset = load_json(osp.join(self.inf_frame.path, self.inf_frame["calib_virtuallidar_to_world_path"]))[
-                "relative_error"
-            ]
+            # Safe parse of relative_error from infra calib file; default to zeros
+            try:
+                vl2w_path = self.inf_frame.get("calib_virtuallidar_to_world_path")
+                if vl2w_path:
+                    d = load_json(osp.join(self.inf_frame.path, vl2w_path))
+                    rel = d.get("relative_error", {})
+                else:
+                    rel = {}
+            except Exception:
+                rel = {}
+
+            def _to_float(x, default=0.0):
+                # treat None / "" / non-numeric as default
+                try:
+                    if x is None or (isinstance(x, str) and x.strip() == ""):
+                        return default
+                    return float(x)
+                except Exception:
+                    return default
+
+            offset = {
+                "delta_x": _to_float(rel.get("delta_x"), 0.0),
+                "delta_y": _to_float(rel.get("delta_y"), 0.0),
+            }
+
         self.offset = offset
 
     def vehicle_frame(self):

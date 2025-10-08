@@ -167,11 +167,24 @@ class Coord_transformation(object):
             output_point = np.dot(rotation, input_point.reshape(3, 1)).reshape(3) + np.array(translation).reshape(3)
         return np.array(output_point)
 
+    # def get_lidar2novatel(self, path_lidar2novatel):  # vehicle side
+    #     lidar2novatel = self.read_json(path_lidar2novatel)
+    #     rotation = lidar2novatel["transform"]["rotation"]
+    #     translation = lidar2novatel["transform"]["translation"]
+    #     return rotation, translation
+
     def get_lidar2novatel(self, path_lidar2novatel):  # vehicle side
         lidar2novatel = self.read_json(path_lidar2novatel)
-        rotation = lidar2novatel["transform"]["rotation"]
-        translation = lidar2novatel["transform"]["translation"]
+        # accept both: {"transform":{"rotation":...,"translation":...}} or flat {"rotation":...,"translation":...}
+        if "transform" in lidar2novatel:
+            d = lidar2novatel["transform"]
+        else:
+            d = lidar2novatel
+
+        rotation = d["rotation"]
+        translation = d["translation"]
         return rotation, translation
+
 
     def get_novatel2world(self, path_novatel2world):  # vehicle side
         novatel2world = self.read_json(path_novatel2world)
