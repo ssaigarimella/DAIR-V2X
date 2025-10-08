@@ -192,17 +192,17 @@ class Coord_transformation(object):
         translation = novatel2world["translation"]
         return rotation, translation
 
-    def get_lidar2world(self, path_lidar2world):  # Infrastructure side, lidar to word
+    def get_lidar2world(self, path_lidar2world):
         lidar2world = self.read_json(path_lidar2world)
         rotation = lidar2world["rotation"]
         translation = lidar2world["translation"]
-        delta_x = lidar2world["relative_error"]["delta_x"]
-        delta_y = lidar2world["relative_error"]["delta_y"]
-        if delta_x == "":
-            delta_x = 0
-        if delta_y == "":
-            delta_y = 0
-
+        # normalize to (3,1)
+        translation = np.array(translation)
+        if translation.shape == (3,):
+            translation = translation.reshape(3, 1)
+        rel = lidar2world.get("relative_error", {})
+        delta_x = 0.0 if rel.get("delta_x", 0.0) == "" else rel.get("delta_x", 0.0)
+        delta_y = 0.0 if rel.get("delta_y", 0.0) == "" else rel.get("delta_y", 0.0)
         return rotation, translation, delta_x, delta_y
 
     def read_json(self, path_json):

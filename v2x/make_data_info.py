@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Generate DAIR-V2X style data_info.json files that match the original schemas:
+Generate DAIR-V2X style data_info.json files:
 
-- <ROOT>/cooperative/data_info.json            (fields: infra/veh image+pcd, coop label_world, system_error_offset)
-- <ROOT>/vehicle-side/data_info.json           (fields: image/pcd timestamps, calib_*novatel*, label/lidar)
-- <ROOT>/infrastructure-side/data_info.json    (fields: image/pcd timestamps, calib_*virtuallidar*, label/virtuallidar)
+- <ROOT>/cooperative/data_info.json            (infra/veh img+pcd, coop label_world, system_error_offset)
+- <ROOT>/vehicle-side/data_info.json           (img/pcd timestamps, calib_*novatel*, label/lidar)
+- <ROOT>/infrastructure-side/data_info.json    (img/pcd timestamps, calib_*virtuallidar*, label/virtuallidar)
 
 If a required per-frame calibration json is missing, this script writes an identity JSON so
 downstream code can open the path instead of crashing on None.
-
-Edit the USER SETTINGS below and run.
 """
 
 from pathlib import Path
@@ -25,14 +23,14 @@ ROOT = Path("/workspace/datasets/dair_v2x_synth_TEST1/cooperative-vehicle-infras
 IMAGE_DIR_NAME  = "image"
 LIDAR_DIR_NAME  = "velodyne"
 
-# cooperative labels (the original set uses cooperative/label_world/<veh_id>.json)
+# cooperative labels (expected location)
 COOP_LABEL_DIR  = "cooperative/label_world"
 
 # extensions to accept (order = preference)
 IMG_EXTS   = (".jpg", ".png", ".jpeg")
-LIDAR_EXTS = (".pcd", ".bin", ".pvd")  # the original uses .pcd
+LIDAR_EXTS = (".pcd", ".bin", ".pvd")  # original uses .pcd
 
-# ---- per-side folder names for labels & calibs (these match the original dataset) ----
+# ---- per-side folder names for labels & calibs (match original dataset) ----
 # vehicle-side
 VEH_LABEL_LIDAR_DIR    = "label/lidar"
 VEH_LABEL_CAMERA_DIR   = "label/camera"
@@ -55,13 +53,13 @@ DEFAULT_DISTORTION = [0, 0, 0, 0, 0]
 I3 = [[1,0,0],[0,1,0],[0,0,1]]
 Z3 = [0,0,0]
 
-# Default timestamps/batching (fill your real values if you have them)
-DEFAULT_IMAGE_TIMESTAMP     = ""   # e.g., "1626155123061000"
-DEFAULT_POINTCLOUD_TIMESTAMP= ""   # e.g., "1626155122981522"
-DEFAULT_BATCH_ID            = "0"
-DEFAULT_BATCH_START_ID      = None # if None -> use frame_id
-DEFAULT_BATCH_END_ID        = None # if None -> use frame_id
-DEFAULT_INTERSECTION_LOC    = ""
+# Default timestamps/batching
+DEFAULT_IMAGE_TIMESTAMP      = ""   # e.g., "1626155123061000"
+DEFAULT_POINTCLOUD_TIMESTAMP = ""   # e.g., "1626155122981522"
+DEFAULT_BATCH_ID             = "0"
+DEFAULT_BATCH_START_ID       = None # if None -> use frame_id
+DEFAULT_BATCH_END_ID         = None # if None -> use frame_id
+DEFAULT_INTERSECTION_LOC     = ""
 
 # =========================
 # helpers
@@ -76,7 +74,7 @@ def list_ids(d: Path, exts):
 
 def first_existing(side_root: Path, rel_paths):
     for rel in rel_paths:
-        if (side_root / rel).exists():
+        if rel and (side_root / rel).exists():
             return rel
     return None
 
@@ -85,6 +83,12 @@ def ensure_json(path: Path, payload: dict):
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+def rel_exists_under_root(root: Path, rel: str) -> bool:
+    """Check that a relative path exists under ROOT (guards against accidental directory checks)."""
+    if not rel:
+        return False
+    return (root / rel).is_file()
 
 # ----- identity writers for missing calibration -----
 def ensure_vehicle_calibs(side_root: Path, fid: str):
@@ -143,7 +147,7 @@ def ensure_infra_calibs(side_root: Path, fid: str):
     )
 
 # =========================
-# per-side writers (match originals)
+# per-side writers
 # =========================
 def build_vehicle_side_entries(side_root: Path, ids):
     out = []
@@ -189,7 +193,7 @@ def build_infra_side_entries(side_root: Path, ids):
         entry = {
             "pointcloud_path": pcd_rel or "",
             "pointcloud_timestamp": DEFAULT_POINTCLOUD_TIMESTAMP,
-            "lidar_id": "",  # fill if known
+            "lidar_id": "",
             "intersection_loc": DEFAULT_INTERSECTION_LOC,
             "batch_start_id": (DEFAULT_BATCH_START_ID or fid),
             "batch_end_id":   (DEFAULT_BATCH_END_ID   or fid),
@@ -212,15 +216,17 @@ def build_infra_side_entries(side_root: Path, ids):
     return out
 
 # =========================
-# cooperative writer (match originals)
+# cooperative writer
 # =========================
 def build_cooperative_entries(root: Path, infra_ids, veh_ids):
     infra = root / "infrastructure-side"
     veh   = root / "vehicle-side"
     pairs = []
 
-    # Without an official mapping, we pair by the SAME id in both sides (intersection).
-    # The original dataset sometimes pairs DIFFERENT ids (async), but that mapping lives in their file.
+    missing_coop = []
+    made = 0
+
+    # Pair by SAME id present on both sides
     common = sorted(infra_ids & veh_ids)
     for fid in common:
         inf_img = first_existing(infra, [f"{IMAGE_DIR_NAME}/{fid}{ext}" for ext in IMG_EXTS])
@@ -230,18 +236,35 @@ def build_cooperative_entries(root: Path, infra_ids, veh_ids):
         if not (inf_img and veh_img):
             continue
 
-        # cooperative label is usually indexed by VEHICLE frame id in the official set
-        veh_label_world = f"{COOP_LABEL_DIR}/{fid}.json"  # change if your coop labels use a different id
-        coop_label = veh_label_world if (root / veh_label_world).exists() else ""
+        # expected coop label
+        coop_rel = f"{COOP_LABEL_DIR}/{fid}.json"
+        coop_ok  = rel_exists_under_root(root, coop_rel)
+
+        if not coop_ok:
+            missing_coop.append(coop_rel)
+            # Still write the entry but leave field blank (matches original behavior)
+            coop_rel_out = ""
+        else:
+            coop_rel_out = coop_rel
+            made += 1
 
         pairs.append({
-            "infrastructure_image_path":  f"infrastructure-side/{inf_img}",
+            "infrastructure_image_path":      f"infrastructure-side/{inf_img}",
             "infrastructure_pointcloud_path": f"infrastructure-side/{inf_pcd}" if inf_pcd else "",
-            "vehicle_image_path":         f"vehicle-side/{veh_img}",
-            "vehicle_pointcloud_path":    f"vehicle-side/{veh_pcd}" if veh_pcd else "",
-            "cooperative_label_path":     coop_label,
+            "vehicle_image_path":             f"vehicle-side/{veh_img}",
+            "vehicle_pointcloud_path":        f"vehicle-side/{veh_pcd}" if veh_pcd else "",
+            "cooperative_label_path":         coop_rel_out,
             "system_error_offset": {"delta_x": 0.0, "delta_y": 0.0},
         })
+
+    # concise diagnostics
+    print(f"[cooperative] total paired by same-id: {len(common)}")
+    print(f"[cooperative] cooperative labels found: {made}  missing: {len(missing_coop)}")
+    if missing_coop[:10]:
+        print("[cooperative] first missing examples:")
+        for m in missing_coop[:10]:
+            print("  -", m)
+
     return pairs
 
 # =========================
@@ -254,10 +277,10 @@ def main():
     coop.mkdir(parents=True, exist_ok=True)
 
     infra_ids = list_ids(infra / IMAGE_DIR_NAME, IMG_EXTS)
-    veh_ids   = list_ids(veh / IMAGE_DIR_NAME, IMG_EXTS)
+    veh_ids   = list_ids(veh   / IMAGE_DIR_NAME, IMG_EXTS)
 
     veh_entries  = build_vehicle_side_entries(veh,   veh_ids)
-    inf_entries  = build_infra_side_entries(infra,   infra_ids)
+    inf_entries  = build_infra_side_entries(infra,  infra_ids)
     coop_entries = build_cooperative_entries(ROOT, infra_ids, veh_ids)
 
     # write
